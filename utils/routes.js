@@ -3,6 +3,8 @@ const Patient = require("../models/Patient");
 const config = require("./config");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
+const Doctor = require("../models/Doctor");
+const Appointment = require("../models/Appointment");
 
 function routes(app) {
 	// health check api
@@ -13,9 +15,9 @@ function routes(app) {
 		);
 	});
 
-	// signup api
+	// patient signup api
 
-	app.post("/signup", (req, res) => {
+	app.post("/patientSignup", (req, res) => {
 		const newPatient = new Patient({
 			name: req.body.name,
 			email: req.body.email,
@@ -24,23 +26,91 @@ function routes(app) {
 			dob: req.body.dob,
 			gender: req.body.gender,
 			mobile: req.body.mobile,
+			userType: "1",
 		});
 
-		newPatient
-			.save()
-			.then((resp) => {
-				return res.status(200).json({
-					title: "User registered successfully",
+		Doctor.findOne({ email: req.body.email }, (err, user) => {
+			if (err)
+				return res.status(500).json({
+					title: "Server error",
 				});
-			})
-			.catch((err) => {
-				if (err) {
-					return res.status(400).json({
-						title: "Error",
-						error: "Email already in use",
+
+			if (user) {
+				return res.status(500).json({
+					title: "User already registered as a doctor",
+				});
+			}
+
+			if (!user) {
+				newPatient
+					.save()
+					.then((resp) => {
+						return res.status(200).json({
+							title: "User registered successfully",
+						});
+					})
+					.catch((err) => {
+						if (err) {
+							return res.status(400).json({
+								title: "Error",
+								error: "Email already in use",
+							});
+						}
 					});
-				}
-			});
+			}
+		});
+	});
+
+	// doctor signup api
+
+	app.post("/doctorSignup", (req, res) => {
+		const newDoctor = new Doctor({
+			name: req.body.name,
+			email: req.body.email,
+			password: bcrypt.hashSync(req.body.password, 10),
+			avatar_url: req.body.avatar_url,
+			dob: req.body.dob,
+			gender: req.body.gender,
+			mobile: req.body.mobile,
+			country: req.body.country,
+			state: req.body.state,
+			city: req.body.city,
+			qualification: req.body.qualification,
+			specialty: req.body.specialty,
+			mci_number: req.body.mci_number,
+			userType: "2",
+		});
+
+		Patient.findOne({ email: req.body.email }, (err, user) => {
+			if (err)
+				return res.status(500).json({
+					title: "Server error",
+				});
+
+			if (user) {
+				return res.status(500).json({
+					title: "User already registered as a patient",
+				});
+			}
+
+			if (!user) {
+				newDoctor
+					.save()
+					.then((resp) => {
+						return res.status(200).json({
+							title: "User registered successfully",
+						});
+					})
+					.catch((err) => {
+						if (err) {
+							return res.status(400).json({
+								title: "Error",
+								error: "Email already in use",
+							});
+						}
+					});
+			}
+		});
 	});
 
 	// // google signup api
@@ -66,34 +136,205 @@ function routes(app) {
 	// 	});
 	// });
 
-	// login api
+	// patient login api
 
 	app.post("/login", (req, res) => {
-		Patient.findOne({ email: req.body.email }, (err, user) => {
-			if (err)
-				return res.status(500).json({
-					title: "Server error",
+		if (req.body.userType == "1") {
+			Patient.findOne({ email: req.body.email }, (err, user) => {
+				if (err)
+					return res.status(500).json({
+						title: "Server error",
+					});
+				if (!user) {
+					return res.status(400).json({
+						title: "User not found, try signing up",
+						error: "No such user",
+					});
+				}
+				if (!bcrypt.compareSync(req.body.password, user.password)) {
+					return res.status(401).json({
+						title: "Login failed",
+						error: "Invalid username or password",
+					});
+				}
+				// authentication is done provide them a token
+				let token = jwt.sign({ userId: user._id }, "secretkey");
+				return res.status(200).json({
+					title: "Login successful",
+					user: user,
+					token: token,
 				});
-			if (!user) {
-				return res.status(400).json({
-					title: "User not found, try signing up",
-					error: "No such user",
-				});
-			}
-			if (!bcrypt.compareSync(req.body.password, user.password)) {
-				return res.status(401).json({
-					title: "Login failed",
-					error: "Invalid username or password",
-				});
-			}
-			// authentication is done provide them a token
-			let token = jwt.sign({ userId: user._id }, "secretkey");
-			return res.status(200).json({
-				title: "Login successful",
-				user: user,
-				token: token,
 			});
+		} else {
+			Doctor.findOne({ email: req.body.email }, (err, user) => {
+				if (err)
+					return res.status(500).json({
+						title: "Server error",
+					});
+				if (!user) {
+					return res.status(400).json({
+						title: "User not found, try signing up",
+						error: "No such user",
+					});
+				}
+				if (!bcrypt.compareSync(req.body.password, user.password)) {
+					return res.status(401).json({
+						title: "Login failed",
+						error: "Invalid username or password",
+					});
+				}
+				// authentication is done provide them a token
+				let token = jwt.sign({ userId: user._id }, "secretkey");
+				return res.status(200).json({
+					title: "Login successful",
+					user: user,
+					token: token,
+				});
+			});
+		}
+	});
+
+	// get profile api
+
+	app.get(`/getProfile`, (req, res) => {
+		let userId = req.query.userId;
+		let userType = req.query.userType;
+
+		if (userType === "1") {
+			Patient.findById({ _id: userId }, (err, user) => {
+				if (err) {
+					res.status(500).json({
+						title: "Some internal error",
+					});
+				}
+				res.status(200).json({
+					title: "Success",
+					user: user,
+				});
+			});
+		} else {
+			Doctor.findById({ _id: userId }, (err, user) => {
+				if (err) {
+					res.status(500).json({
+						title: "Some internal error",
+					});
+				}
+				res.status(200).json({
+					title: "Success",
+					user: user,
+				});
+			});
+		}
+	});
+
+	// edit Todo api
+
+	app.post(`/editProfile`, (req, res) => {
+		let userId = req.body.userId;
+		let userType = req.body.userType;
+
+		if (userType == "1") {
+			Patient.findByIdAndUpdate(userId, {
+				mobile: req.body.mobile,
+				avatar_url: req.body.avatar_url,
+				height: req.body.height,
+				weight: req.body.weight,
+				bloodGroup: req.body.bloodGroup,
+			})
+				.then((data) => {
+					console.log(data);
+					res.status(200).json({
+						title: "User updated successfully",
+						response: data,
+					});
+				})
+				.catch((err) => {
+					res.status(500).json({
+						title: "Some internal error",
+					});
+				});
+		} else {
+			Doctor.findByIdAndUpdate(userId, {
+				mobile: req.body.mobile,
+				avatar_url: req.body.avatar_url,
+				country: req.body.country,
+				state: req.body.state,
+				city: req.body.city,
+			})
+				.then((data) => {
+					console.log(data);
+					res.status(200).json({
+						title: "User updated successfully",
+						response: data,
+					});
+				})
+				.catch((err) => {
+					res.status(500).json({
+						title: "Some internal error",
+					});
+				});
+		}
+	});
+
+	// create appointment
+
+	app.post(`/bookAppointment`, (req, res) => {
+		const newAppointment = new Appointment({
+			doctorId: req.body.doctorId,
+			patientId: req.body.patientId,
+			appointmentDate: req.body.appointmentDate,
+			appointmentTime: req.body.appointmentTime,
+			// checkByDoctor: false,
 		});
+
+		newAppointment
+			.save()
+			.then((resp) => {
+				return res.status(200).json({
+					title: "Appointment booked successfully",
+				});
+			})
+			.catch((err) => {
+				if (err) {
+					return res.status(400).json({
+						title: "Error",
+						error: "Some error",
+					});
+				}
+			});
+	});
+
+	// get my appointments api
+
+	app.get(`/getMyAppointments`, (req, res) => {
+		let userId = req.query.userId;
+		let userType = req.query.userType;
+
+		if (userType == "1") {
+			Appointment.find({ patientId: userId }, (err, data) => {
+				if (err) {
+					res.status(500).json({
+						title: "Some internal error",
+					});
+				}
+				res.status(200).json({
+					title: "Success",
+					appointments: data?.reverse(),
+				});
+			});
+		} else {
+			Appointment.find({ doctorId: userId }, (err, data) => {
+				if (err) {
+					res.status(500).json({
+						title: "Some internal error",
+					});
+				}
+				res.status(200).json({
+					title: "Success",
+					appointments: data?.reverse(),
+				});
+			});
+		}
 	});
 
 	// // google login api
@@ -144,23 +385,6 @@ function routes(app) {
 	// 			});
 	// 		});
 	// 	}
-	// });
-
-	// // get todos api
-
-	// app.get(`/getTodos`, (req, res) => {
-	// 	let userId = req.query.user_id;
-	// 	Todo.find({ user_id: userId }, (err, todo) => {
-	// 		if (err) {
-	// 			res.status(500).json({
-	// 				title: "Some internal error",
-	// 			});
-	// 		}
-	// 		res.status(200).json({
-	// 			title: "Success",
-	// 			todos: todo?.reverse(),
-	// 		});
-	// 	});
 	// });
 
 	// // complete todo api
