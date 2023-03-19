@@ -11,6 +11,7 @@ const appointmentSchema = new Schema({
 	doctorPhoto: String,
 	patientName: String,
 	patientPhoto: String,
+	completed: Boolean,
 	// feesPaid: Boolean,
 });
 
