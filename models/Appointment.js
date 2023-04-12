@@ -2,17 +2,26 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 const appointmentSchema = new Schema({
-	doctorId: String,
-	patientId: String,
+	doctorDetail: {
+		type: Schema.Types.ObjectId,
+		ref: "Doctor",
+	},
+	patientDetail: {
+		type: Schema.Types.ObjectId,
+		ref: "Patient",
+	},
+	doctorId: {
+		type: Schema.Types.ObjectId,
+		ref: "Doctor",
+	},
+	patientId: {
+		type: Schema.Types.ObjectId,
+		ref: "Patient",
+	},
 	appointmentDate: String,
 	appointmentTime: String,
 	checkByDoctor: Boolean,
-	doctorName: String,
-	doctorPhoto: String,
-	patientName: String,
-	patientPhoto: String,
 	completed: Boolean,
-	// feesPaid: Boolean,
 });
 
 const Appointment = mongoose.model("Appointment", appointmentSchema);

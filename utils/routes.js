@@ -5,6 +5,8 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const Doctor = require("../models/Doctor");
 const Appointment = require("../models/Appointment");
+const Article = require("../models/Article");
+const Chatroom = require("../models/Chatroom");
 
 function routes(app) {
 	// health check api
@@ -27,6 +29,8 @@ function routes(app) {
 			gender: req.body.gender,
 			mobile: req.body.mobile,
 			userType: "1",
+			height: req?.body?.height,
+			weight: req?.body?.weight,
 		});
 
 		Doctor.findOne({ email: req.body.email }, (err, user) => {
@@ -99,6 +103,7 @@ function routes(app) {
 					.then((resp) => {
 						return res.status(200).json({
 							title: "User registered successfully",
+							user: resp,
 						});
 					})
 					.catch((err) => {
@@ -227,7 +232,7 @@ function routes(app) {
 		}
 	});
 
-	// edit Todo api
+	// edit profile api
 
 	app.post(`/editProfile`, (req, res) => {
 		let userId = req.body.userId;
@@ -276,6 +281,59 @@ function routes(app) {
 		}
 	});
 
+	// create article
+
+	app.post(`/createArticle`, (req, res) => {
+		// let existingUser;
+		// try {
+		//   existingUser = Doctor.findById(userId);
+		// } catch (error) {
+		//   return console.log(error);
+		// }
+
+		const newArticle = new Article({
+			doctorId: req.body.doctorId,
+			createdAt: req.body.createdAt,
+			doctorName: req.body.doctorName,
+			doctorPhoto: req.body.doctorPhoto,
+			description: req.body.description,
+			title: req.body.title,
+			qualification: req.body.qualification,
+			// doctorDetails: req.body.doctorDetails,
+		});
+		newArticle
+			.save()
+			.then((resp) => {
+				return res.status(200).json({
+					title: "Article posted successfully",
+				});
+			})
+			.catch((err) => {
+				if (err) {
+					return res.status(400).json({
+						title: "Error detected",
+						error: "Some error",
+					});
+				}
+			});
+	});
+
+	// get allArticles api
+
+	app.get(`/getAllArticles`, (req, res) => {
+		Article.find((err, data) => {
+			if (err) {
+				res.status(500).json({
+					title: "Some internal error",
+				});
+			}
+			res.status(200).json({
+				title: "Success",
+				article: data,
+			});
+		});
+	});
+
 	// create appointment
 
 	app.post(`/bookAppointment`, (req, res) => {
@@ -304,6 +362,16 @@ function routes(app) {
 			});
 	});
 
+	// delete appointment
+
+	app.post(`/deleteAppointment`, (req, res) => {
+		Appointment?.findByIdAndDelete(req?.body?.appointmentId).then(() => {
+			return res?.status(200).json({
+				title: "Appointment deleted successfully",
+			});
+		});
+	});
+
 	// get my appointments api
 
 	app.get(`/getMyAppointments`, (req, res) => {
@@ -311,29 +379,123 @@ function routes(app) {
 		let userType = req.query.userType;
 
 		if (userType == "1") {
-			Appointment.find({ patientId: userId }, (err, data) => {
-				if (err) {
-					res.status(500).json({
-						title: "Some internal error",
-					});
+			Appointment.aggregate(
+				[
+					{
+						$lookup: {
+							from: "doctors", // collection to join
+							localField: "doctorId", //field from the input documents
+							foreignField: "_id", //field from the documents of the "from" collection
+							as: "user", // output array field
+						},
+					},
+					{
+						$unwind: "$user",
+					},
+				],
+				function (error, data) {
+					return res.json(data);
+					//handle error case also
 				}
-				res.status(200).json({
-					title: "Success",
-					appointments: data?.reverse(),
-				});
-			});
+			);
 		} else {
-			Appointment.find({ doctorId: userId }, (err, data) => {
+			Appointment.aggregate(
+				[
+					{
+						$lookup: {
+							from: "patients", // collection to join
+							localField: "patientId", //field from the input documents
+							foreignField: "_id", //field from the documents of the "from" collection
+							as: "user", // output array field
+						},
+					},
+					{
+						$unwind: "$user",
+					},
+				],
+				function (error, data) {
+					return res.json(data);
+					//handle error case also
+				}
+			);
+		}
+	});
+
+	// create chatroom api
+
+	app.post(`/createChatRoom`, (req, res) => {
+		const newChatRoom = new Chatroom({
+			doctorId: req.body.doctorId,
+			patientId: req.body.patientId,
+			lastMessage: "",
+			createdAt: req.body.createdAt,
+			unreadMessageCount: 0,
+		});
+
+		newChatRoom
+			.save()
+			.then((resp) => {
+				return res.status(200).json({
+					title: "Chatroom created successfully",
+					data: resp,
+				});
+			})
+			.catch((err) => {
 				if (err) {
-					res.status(500).json({
-						title: "Some internal error",
+					return res.status(400).json({
+						title: "Error",
+						error: "Some error",
 					});
 				}
-				res.status(200).json({
-					title: "Success",
-					appointments: data?.reverse(),
-				});
 			});
+	});
+
+	// get my chatRooms api
+
+	app.get(`/getMyChatRooms`, (req, res) => {
+		let userId = req.query.userId;
+		let userType = req.query.userType;
+
+		if (userType == "1") {
+			Chatroom.aggregate(
+				[
+					{
+						$lookup: {
+							from: "doctors", // collection to join
+							localField: "doctorId", //field from the input documents
+							foreignField: "_id", //field from the documents of the "from" collection
+							as: "user", // output array field
+						},
+					},
+					{
+						$unwind: "$user",
+					},
+				],
+				function (error, data) {
+					return res.json(data);
+					//handle error case also
+				}
+			);
+		} else {
+			Chatroom.aggregate(
+				[
+					{
+						$lookup: {
+							from: "patients", // collection to join
+							localField: "patientId", //field from the input documents
+							foreignField: "_id", //field from the documents of the "from" collection
+							as: "user", // output array field
+						},
+					},
+					{
+						$unwind: "$user",
+					},
+				],
+				function (error, data) {
+					return res.json(data);
+					//handle error case also
+				}
+			);
 		}
 	});
 
