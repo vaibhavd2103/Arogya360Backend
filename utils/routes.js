@@ -7,6 +7,8 @@ const Doctor = require("../models/Doctor");
 const Appointment = require("../models/Appointment");
 const Article = require("../models/Article");
 const Chatroom = require("../models/Chatroom");
+const Message = require("../models/Message");
+const Report = require("../models/Report");
 
 function routes(app) {
 	// health check api
@@ -51,59 +53,6 @@ function routes(app) {
 					.then((resp) => {
 						return res.status(200).json({
 							title: "User registered successfully",
-						});
-					})
-					.catch((err) => {
-						if (err) {
-							return res.status(400).json({
-								title: "Error",
-								error: "Email already in use",
-							});
-						}
-					});
-			}
-		});
-	});
-
-	// doctor signup api
-
-	app.post("/doctorSignup", (req, res) => {
-		const newDoctor = new Doctor({
-			name: req.body.name,
-			email: req.body.email,
-			password: bcrypt.hashSync(req.body.password, 10),
-			avatar_url: req.body.avatar_url,
-			dob: req.body.dob,
-			gender: req.body.gender,
-			mobile: req.body.mobile,
-			country: req.body.country,
-			state: req.body.state,
-			city: req.body.city,
-			qualification: req.body.qualification,
-			specialty: req.body.specialty,
-			mci_number: req.body.mci_number,
-			userType: "2",
-		});
-
-		Patient.findOne({ email: req.body.email }, (err, user) => {
-			if (err)
-				return res.status(500).json({
-					title: "Server error",
-				});
-
-			if (user) {
-				return res.status(500).json({
-					title: "User already registered as a patient",
-				});
-			}
-
-			if (!user) {
-				newDoctor
-					.save()
-					.then((resp) => {
-						return res.status(200).json({
-							title: "User registered successfully",
-							user: resp,
 						});
 					})
 					.catch((err) => {
@@ -284,13 +233,6 @@ function routes(app) {
 	// create article
 
 	app.post(`/createArticle`, (req, res) => {
-		// let existingUser;
-		// try {
-		//   existingUser = Doctor.findById(userId);
-		// } catch (error) {
-		//   return console.log(error);
-		// }
-
 		const newArticle = new Article({
 			doctorId: req.body.doctorId,
 			createdAt: req.body.createdAt,
@@ -421,6 +363,24 @@ function routes(app) {
 		}
 	});
 
+	// get booked appointments api
+
+	app.get(`/getBookedAppointments`, (req, res) => {
+		let userId = req.query.userId;
+
+		Appointment.find({ doctorId: userId }, (err, data) => {
+			if (err) {
+				res.status(500).json({
+					title: "Some internal error",
+				});
+			}
+			res.status(200).json({
+				title: "Success",
+				data: data,
+			});
+		});
+	});
+
 	// create chatroom api
 
 	app.post(`/createChatRoom`, (req, res) => {
@@ -432,22 +392,41 @@ function routes(app) {
 			unreadMessageCount: 0,
 		});
 
-		newChatRoom
-			.save()
-			.then((resp) => {
-				return res.status(200).json({
-					title: "Chatroom created successfully",
-					data: resp,
-				});
-			})
-			.catch((err) => {
+		Chatroom.findOne(
+			{ doctorId: req.body.doctorId, patientId: req.body.patientId },
+			(err, chatRoom) => {
 				if (err) {
 					return res.status(400).json({
 						title: "Error",
 						error: "Some error",
 					});
 				}
-			});
+				if (!chatRoom) {
+					newChatRoom
+						.save()
+						.then((resp) => {
+							return res.status(200).json({
+								title: "Chatroom created successfully",
+								data: resp,
+							});
+						})
+						.catch((err) => {
+							if (err) {
+								return res.status(400).json({
+									title: "Error",
+									error: "Some error",
+								});
+							}
+						});
+				}
+				if (chatRoom) {
+					return res.status(200).json({
+						title: "Chatroom already exists",
+						data: chatRoom,
+					});
+				}
+			}
+		);
 	});
 
 	// get my chatRooms api
@@ -497,6 +476,122 @@ function routes(app) {
 				}
 			);
 		}
+	});
+
+	// send message api
+
+	app.post(`/sendMessage`, (req, res) => {
+		const newMessage = new Message({
+			senderId: req.body.senderId,
+			receiverId: req.body.receiverId,
+			chatRoomId: req.body.chatRoomId,
+			createdAt: req.body.createdAt,
+			messageType: req.body.messageType,
+			message: req.body.message,
+		});
+
+		newMessage
+			.save()
+			.then((resp) => {
+				return res.status(200).json({
+					title: "Message send successfully",
+					data: resp,
+				});
+			})
+			.catch((err) => {
+				if (err) {
+					return res.status(400).json({
+						title: "Error",
+						error: err,
+					});
+				}
+			});
+	});
+
+	// get messages api
+
+	app.get(`/getMessages`, (req, res) => {
+		let chatRoomId = req.query.chatRoomId;
+
+		Message.find({ chatRoomId: chatRoomId }, (err, data) => {
+			if (err) {
+				res.status(500).json({
+					title: "Some internal error",
+				});
+			}
+			res.status(200).json({
+				title: "Success",
+				messages: data?.reverse(),
+			});
+		});
+	});
+
+	app.get("/getAllDoctors", (req, res) => {
+		Doctor.find((err, data) => {
+			if (err) {
+				res.status(500).json({
+					title: "Some internal error",
+				});
+			}
+			res.status(200).json({
+				title: "Success",
+				doctors: data,
+			});
+		});
+	});
+
+	// create report api
+
+	app.post("/createReport", (req, res) => {
+		const newReport = new Report({
+			doctorId: req.body.doctorId,
+			patientId: req.body.patientId,
+			patientName: req.body.patientName,
+			patientAge: req.body.patientAge,
+			patientGender: req.body.patientGender,
+			patientHeight: req.body.patientHeight,
+			patientWeight: req.body.patientWeight,
+			medicines: req.body.medicines,
+			reasons: req.body.reasons,
+			createdAt: req.body.createdAt,
+			chatRoomId: req.body.chatRoomId,
+			description: req.body.description,
+		});
+
+		newReport
+			.save()
+			.then((resp) => {
+				return res.status(200).json({
+					title: "Report created successfully",
+					data: resp,
+				});
+			})
+			.catch((err) => {
+				if (err) {
+					return res.status(400).json({
+						title: "Error",
+						error: "Some error",
+					});
+				}
+			});
+	});
+
+	// get my report api
+
+	app.get(`/getMyReport`, (req, res) => {
+		let userId = req.query.userId;
+
+		Report.findOne({ patientId: userId }, (err, data) => {
+			if (err) {
+				res.status(500).json({
+					title: "Some internal error",
+				});
+			}
+			res.status(200).json({
+				title: "Success",
+				data: data,
+			});
+		});
 	});
 
 	// // google login api

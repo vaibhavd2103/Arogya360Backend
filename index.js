@@ -36,16 +36,19 @@ const io = new Server(server, {
 io.on("connection", (socket) => {
 	console.log("User connected : ", socket.id);
 
-	socket.on("join_room", (roomId) => {
-		socket.join(roomId);
+	socket.emit("connected", "User online");
+
+	socket.on("join_room", (data) => {
+		socket.join(data);
 		console.log(
-			`User with ID : ${socket.id} joined the room with ID : ${roomId}`
+			`User with ID : ${socket.id} joined the room with ID : ${data}`
 		);
 	});
 
 	socket.on("send_message", (message) => {
 		console.log("received message : ", message);
-		socket.emit("receive_message", message);
+		// io.emit("receive_message", message);
+		io.to(message?.chatRoomId).emit("receive_message", message);
 		// socket.to(message?.roomId).emit("receive_message", message);
 	});
 
