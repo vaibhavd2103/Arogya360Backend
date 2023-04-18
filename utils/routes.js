@@ -697,7 +697,7 @@ function routes(app) {
   };
 
   let waterReminderTask = cron.schedule(
-    "*/2 * * *",
+    "*/10 * * * * *",
     async function () {
       console.log("running a waterReminderTask every 10 second");
       await getUsers();
@@ -715,7 +715,7 @@ function routes(app) {
       var raw = {
         app_id: "ed4fea1b-24d7-4405-b886-4bc9460a7f2d",
         data: { foo: "bar" },
-        contents: { en: "Scheduled notification" },
+        contents: { en: "It's Time to drink Water!!" },
         include_external_user_ids: allUsers,
       };
       var requestOptions = {
@@ -775,6 +775,16 @@ function routes(app) {
             error: "Some error",
           });
         }
+      });
+  });
+
+  app.get("/getAllWaterReminderUsers", (req, res) => {
+    WaterReminder.find({})
+      .then((resp) => {
+        res.send(resp);
+      })
+      .catch((err) => {
+        console.log(err);
       });
   });
 
