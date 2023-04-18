@@ -10,6 +10,8 @@ const Chatroom = require("../models/Chatroom");
 const Message = require("../models/Message");
 const Report = require("../models/Report");
 const Image = require("../models/Image");
+const cron = require("node-cron");
+const WaterReminder = require("../models/WaterReminder");
 
 function routes(app) {
   // health check api
@@ -285,6 +287,93 @@ function routes(app) {
     );
   });
 
+  // like article
+
+  app.post(`/likeArticle`, (req, res) => {
+    let userId = req.body.userId;
+    let likesArray = [];
+    let articleId = req.body.articleId;
+    // image is same as the name of the input from where you grab the file
+    Article.findById(articleId, (err, article) => {
+      if (err)
+        return res.status(500).json({
+          title: "Server error",
+        });
+
+      if (article) {
+        likesArray = article?.likes;
+        let index = likesArray?.findIndex((data) => data == userId);
+        if (index > -1) {
+          likesArray?.splice(index, 1);
+        } else {
+          likesArray.push(userId);
+        }
+        Article.findByIdAndUpdate(
+          articleId,
+          { likes: likesArray },
+          (err, resp) => {
+            if (err)
+              return res.status(500).json({
+                title: "Server error",
+              });
+
+            return res.status(200).json({
+              data: resp,
+            });
+          }
+        );
+
+        // return res.status(200).json({
+        //   data: article,
+        // });
+      }
+      console.log(article);
+    });
+  });
+
+  // saved article
+  app.post(`/saveArticle`, (req, res) => {
+    let userId = req.body.userId;
+    let saveArray = [];
+    let articleId = req.body.articleId;
+    // image is same as the name of the input from where you grab the file
+    Article.findById(articleId, (err, article) => {
+      if (err)
+        return res.status(500).json({
+          title: "Server error",
+        });
+
+      if (article) {
+        saveArray = article?.savePost;
+        let index = saveArray?.findIndex((data) => data == userId);
+        if (index > -1) {
+          saveArray?.splice(index, 1);
+        } else {
+          saveArray.push(userId);
+        }
+        Article.findByIdAndUpdate(
+          articleId,
+          { savePost: saveArray },
+          (err, resp) => {
+            if (err)
+              return res.status(500).json({
+                title: "Server error",
+              });
+
+            return res.status(200).json({
+              data: resp,
+            });
+          }
+        );
+
+        // return res.status(200).json({
+        //   data: article,
+        // });
+      }
+      console.log(article);
+    });
+  });
+
   // create appointment
 
   app.post(`/bookAppointment`, (req, res) => {
@@ -312,7 +401,6 @@ function routes(app) {
         }
       });
   });
-
   // delete appointment
 
   app.post(`/deleteAppointment`, (req, res) => {
@@ -345,7 +433,7 @@ function routes(app) {
           },
         ],
         function (error, data) {
-          return res.json(data);
+          return res.json(data.reverse());
           //handle error case also
         }
       );
@@ -365,7 +453,7 @@ function routes(app) {
           },
         ],
         function (error, data) {
-          return res.json(data);
+          return res.json(data.reverse());
           //handle error case also
         }
       );
@@ -460,7 +548,7 @@ function routes(app) {
           },
         ],
         function (error, data) {
-          return res.json(data);
+          return res.json(data.reverse());
           //handle error case also
         }
       );
@@ -480,7 +568,7 @@ function routes(app) {
           },
         ],
         function (error, data) {
-          return res.json(data);
+          return res.json(data.reverse());
           //handle error case also
         }
       );
@@ -585,6 +673,127 @@ function routes(app) {
       });
   });
 
+  // send scheduled notifications
+
+  let allUsers = [];
+
+  const getUsers = async () => {
+    await WaterReminder.find({})
+      .then((res) => {
+        allUsers = res?.map((item) => {
+          // console.log(item?.userId);
+          return item?.userId;
+        });
+        // console.log(res);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+
+    // let newUsersArray = await allUsers?.map((item) => {
+    //   // console.log(item?.userId);
+    //   return item?.userId;
+    // });
+  };
+
+  let waterReminderTask = cron.schedule(
+    "*/2 * * *",
+    async function () {
+      console.log("running a waterReminderTask every 10 second");
+      await getUsers();
+      var myHeaders = new Headers();
+      myHeaders.append("Content-Type", "application/json");
+      myHeaders.append(
+        "Authorization",
+        `Basic YzMwN2JkZTQtYjI5ZC00MzdmLThjMDctYjNhMDEyMmE5MDlh`
+      );
+      myHeaders.append(
+        "Cookie",
+        "__cf_bm=bdqS8ErB69aUdLzaYoVpaeg_oahFuelmup5mdcq77Ks-1681462163-0-ARCUV2u5fo8eJFtgQBme3gk37ZYVgz607LDktKkGkLh7TAceBiXLaFrn1PlFwG8XVvqD3QmI0RU6+CVeGcGcnVE="
+      );
+
+      var raw = {
+        app_id: "ed4fea1b-24d7-4405-b886-4bc9460a7f2d",
+        data: { foo: "bar" },
+        contents: { en: "Scheduled notification" },
+        include_external_user_ids: allUsers,
+      };
+      var requestOptions = {
+        method: "POST",
+        headers: myHeaders,
+        body: JSON.stringify(raw),
+        redirect: "follow",
+      };
+
+      fetch("https://onesignal.com/api/v1/notifications", requestOptions)
+        .then((response) => response.text())
+        // .then((result) => console.log(result))
+        .catch((error) => console.log("error", error));
+    },
+    {
+      scheduled: false,
+    }
+  );
+
+  app.post("/scheduleWaterReminder", async (req, res) => {
+    console.log(allUsers);
+
+    waterReminderTask.start();
+    res.status(200).json({
+      title: "Notifications scheduled successfully",
+    });
+  });
+
+  // stop cron job notification
+
+  app.post("/stopWaterReminder", (req, res) => {
+    waterReminderTask?.stop();
+    res.status(200).json({
+      title: "Notifications stopped successfully",
+    });
+  });
+
+  // add water reminder user
+
+  app.post("/addWaterReminderUser", (req, res) => {
+    const addUser = new WaterReminder({
+      userId: req.body.userId,
+    });
+
+    addUser
+      .save()
+      .then((resp) => {
+        return res.status(200).json({
+          title: "User added successfully",
+          data: resp,
+        });
+      })
+      .catch((err) => {
+        if (err) {
+          return res.status(400).json({
+            title: "Error",
+            error: "Some error",
+          });
+        }
+      });
+  });
+
+  // remove water reminder user
+
+  app.post("/removeWaterReminderUser", (req, res) => {
+    WaterReminder.findOneAndDelete({ userId: req.body.userId }, (err, data) => {
+      if (err) {
+        res.status(500).json({
+          title: "Some internal error",
+        });
+      }
+      res.status(200).json({
+        title: "User removed successfully",
+        data: data,
+      });
+    });
+  });
+
   // get my report api
 
   app.get(`/getMyReport`, (req, res) => {
@@ -602,6 +811,8 @@ function routes(app) {
       });
     });
   });
+
+  // water reminder
 
   // // google login api
 
