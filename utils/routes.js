@@ -694,7 +694,8 @@ function routes(app) {
   };
 
   let waterReminderTask = cron.schedule(
-    "0 */1 * * *",
+    // "0 */1 * * *",
+    "*/40 * * * * *",
     async function () {
       await getUsers();
       console.log("running a waterReminderTask every 10 second");
@@ -871,7 +872,8 @@ function routes(app) {
   };
 
   let MedicineReminderTask = cron.schedule(
-    "*/10 * * * * *",
+    "*/30 * * * * *",
+    // "0 */6 * * *",
     async function () {
       await getMedicineUsers();
       console.log("running a medicineTrackerTask every 10 second");
