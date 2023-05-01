@@ -12,6 +12,7 @@ const Report = require("../models/Report");
 const Image = require("../models/Image");
 const cron = require("node-cron");
 const WaterReminder = require("../models/WaterReminder");
+const fetch = require("node-fetch");
 
 function routes(app) {
 	// health check api
@@ -682,27 +683,23 @@ function routes(app) {
 			.then((res) => {
 				allUsers = res?.map((item) => {
 					// console.log(item?.userId);
-					return item?.userId;
+					return item?.userId?.toString();
 				});
 				// console.log(res);
 			})
 			.catch((err) => {
 				console.log(err);
 			});
-
-		// let newUsersArray = await allUsers?.map((item) => {
-		//   // console.log(item?.userId);
-		//   return item?.userId;
-		// });
 	};
 
 	let waterReminderTask = cron.schedule(
-		"*/10 * * * * *",
+		"0 */1 * * *",
 		async function () {
+			await getUsers();
 			console.log("running a waterReminderTask every 10 second");
 			console.log("all water reminder users------>", allUsers);
-			await getUsers();
-			var myHeaders = new Headers();
+
+			var myHeaders = new fetch.Headers();
 			myHeaders.append("Content-Type", "application/json");
 			myHeaders.append(
 				"Authorization",
@@ -716,20 +713,28 @@ function routes(app) {
 			var raw = {
 				app_id: "ed4fea1b-24d7-4405-b886-4bc9460a7f2d",
 				data: { foo: "bar" },
-				contents: { en: "It's Time to drink Water!!" },
+				contents: { en: "It's time to drink Water!!" },
+				headings: { en: "Water Reminder" },
+				big_picture:
+					"https://media.hswstatic.com/eyJidWNrZXQiOiJjb250ZW50Lmhzd3N0YXRpYy5jb20iLCJrZXkiOiJnaWZcL3dhdGVyLXVwZGF0ZS5qcGciLCJlZGl0cyI6eyJyZXNpemUiOnsid2lkdGgiOjgyOH19fQ==",
+				android_accent_color: "003467",
 				include_external_user_ids: allUsers,
 			};
 			var requestOptions = {
 				method: "POST",
-				headers: myHeaders,
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Basic YzMwN2JkZTQtYjI5ZC00MzdmLThjMDctYjNhMDEyMmE5MDlh`,
+				},
 				body: JSON.stringify(raw),
 				redirect: "follow",
 			};
-
+			console.log("between api call");
 			await fetch("https://onesignal.com/api/v1/notifications", requestOptions)
-				.then((response) => response.text())
+				.then((response) => console.log(response.text()))
 				// .then((result) => console.log(result))
 				.catch((error) => console.log("error", error));
+			// sendNotification();
 		},
 		{
 			scheduled: false,
@@ -737,7 +742,7 @@ function routes(app) {
 	);
 
 	app.post("/scheduleWaterReminder", async (req, res) => {
-		console.log(allUsers);
+		// console.log(allUsers);
 
 		waterReminderTask.start();
 		res.status(200).json({
