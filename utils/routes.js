@@ -246,7 +246,7 @@ function routes(app) {
       description: req.body.description,
       title: req.body.title,
       qualification: req.body.qualification,
-      // doctorDetails: req.body.doctorDetails,
+      image: req.body.image
     });
     newArticle
       .save()
